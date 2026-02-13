@@ -1,114 +1,156 @@
 import { useState } from "react"
-import axios from "axios"
+import FieldBuilder from "./components/Filebuilder"
+import type { Field } from "./type"
+import ResponseBuilder from "./components/Respose"
+
 
 function App() {
-  const [path, setPath] = useState("")
-  const [method, setMethod] = useState("GET")
-  const [requestFields, setRequestFields] = useState<any[]>([])
-  const [responseFields, setResponseFields] = useState<any[]>([])
+  const [routes, setRoutes] = useState<any[]>([])
+  const [activeRoute, setActiveRoute] = useState<number | null>(null)
   const [result, setResult] = useState("")
 
-  const addField = (type: "request" | "response") => {
-    const field = { name: "", type: "string" }
-
-    if (type === "request") {
-      setRequestFields([...requestFields, field])
-    } else {
-      setResponseFields([...responseFields, field])
+  const addRoute = () => {
+    const newRoute = {
+      path: "",
+      method: "GET",
+      requestFields: [],
+      responses: []
     }
+
+    setRoutes([...routes, newRoute])
+    setActiveRoute(routes.length)
   }
 
-  const generateSchema = async () => {
-    const res = await axios.post("http://localhost:7000/generate", {
-      path,
-      method,
-      requestFields,
-      responseFields
-    })
+  const updateRoute = (key: string, value: any) => {
+    if (activeRoute === null) return
 
-    setResult(JSON.stringify(res.data, null, 2))
+    const updated = [...routes]
+    updated[activeRoute][key] = value
+    setRoutes(updated)
   }
 
   return (
-    <div style={{ padding: "20px" }}>
-      <h1>OpenAPI Generator</h1>
+    <div className="h-screen flex bg-[#0f172a] text-gray-200">
 
-      <input
-        placeholder="/users"
-        value={path}
-        onChange={(e) => setPath(e.target.value)}
-      />
+      {/* Sidebar */}
+      <div className="w-64 bg-[#111827] border-r border-gray-800 p-4">
+        <h2 className="text-lg font-semibold mb-4">Routes</h2>
 
-      <select value={method} onChange={(e) => setMethod(e.target.value)}>
-        <option>GET</option>
-        <option>POST</option>
-        <option>PUT</option>
-        <option>DELETE</option>
-      </select>
+        <button
+          onClick={addRoute}
+          className="w-full bg-blue-600 hover:bg-blue-500 py-2 rounded-lg mb-4"
+        >
+          + Add Route
+        </button>
 
-      <h3>Request Fields</h3>
-      {requestFields.map((field, i) => (
-        <div key={i}>
-          <input
-            placeholder="field name"
-            onChange={(e) => {
-              const updated = [...requestFields]
-              updated[i].name = e.target.value
-              setRequestFields(updated)
-            }}
-          />
-          <select
-            onChange={(e) => {
-              const updated = [...requestFields]
-              updated[i].type = e.target.value
-              setRequestFields(updated)
-            }}
+        {routes.map((route, index) => (
+          <div
+            key={index}
+            onClick={() => setActiveRoute(index)}
+            className={`p-2 rounded cursor-pointer mb-2 ${
+              activeRoute === index
+                ? "bg-blue-600"
+                : "bg-gray-800 hover:bg-gray-700"
+            }`}
           >
-            <option value="string">string</option>
-            <option value="number">number</option>
-            <option value="boolean">boolean</option>
-          </select>
-        </div>
-      ))}
+            {route.method} {route.path || "/new-route"}
+          </div>
+        ))}
+      </div>
 
-      <button onClick={() => addField("request")}>
-        Add Request Field
-      </button>
+      {/* Builder */}
+      <div className="flex-1 p-6 overflow-y-auto">
 
-      <h3>Response Fields</h3>
-      {responseFields.map((field, i) => (
-        <div key={i}>
-          <input
-            placeholder="field name"
-            onChange={(e) => {
-              const updated = [...responseFields]
-              updated[i].name = e.target.value
-              setResponseFields(updated)
+        {activeRoute !== null && (
+          <div className="space-y-6">
+
+            {/* Route Config */}
+            <div className="bg-gray-900 p-6 rounded-xl border border-gray-800">
+              <h2 className="text-xl font-semibold mb-4">Route Config</h2>
+
+              <div className="flex gap-4">
+                <input
+                  placeholder="/users"
+                  value={routes[activeRoute].path}
+                  onChange={(e) =>
+                    updateRoute("path", e.target.value)
+                  }
+                  className="flex-1 bg-gray-800 border border-gray-700 p-2 rounded"
+                />
+
+                <select
+                  value={routes[activeRoute].method}
+                  onChange={(e) =>
+                    updateRoute("method", e.target.value)
+                  }
+                  className="bg-gray-800 border border-gray-700 p-2 rounded"
+                >
+                  <option>GET</option>
+                  <option>POST</option>
+                  <option>PUT</option>
+                  <option>DELETE</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Request Body */}
+            <div className="bg-gray-900 p-6 rounded-xl border border-gray-800">
+              <h2 className="text-xl font-semibold mb-4">
+                Request Body
+              </h2>
+
+              <FieldBuilder
+                fields={routes[activeRoute].requestFields}
+                setFields={(fields: Field[]) =>
+                  updateRoute("requestFields", fields)
+                }
+              />
+            </div>
+
+            {/* Responses */}
+            <div className="bg-gray-900 p-6 rounded-xl border border-gray-800">
+              <h2 className="text-xl font-semibold mb-4">
+                Responses
+              </h2>
+
+              <ResponseBuilder
+                responses={routes[activeRoute].responses}
+                setResponses={(responses: ResponseType[]) =>
+                  updateRoute("responses", responses)
+                }
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Preview Panel */}
+      <div className="w-1/3 bg-black border-l border-gray-800 p-6 overflow-y-auto">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-semibold">Schema Preview</h2>
+
+          <button
+            onClick={() => {
+              const blob = new Blob([result], {
+                type: "application/json"
+              })
+              const url = URL.createObjectURL(blob)
+              const a = document.createElement("a")
+              a.href = url
+              a.download = "openapi.json"
+              a.click()
             }}
-          />
-          <select
-            onChange={(e) => {
-              const updated = [...responseFields]
-              updated[i].type = e.target.value
-              setResponseFields(updated)
-            }}
+            className="bg-green-600 px-3 py-1 rounded"
           >
-            <option value="string">string</option>
-            <option value="number">number</option>
-            <option value="boolean">boolean</option>
-          </select>
+            Download
+          </button>
         </div>
-      ))}
 
-      <button onClick={() => addField("response")}>
-        Add Response Field
-      </button>
+        <pre className="text-green-400 text-sm whitespace-pre-wrap">
+          {result || "Generated schema will appear here..."}
+        </pre>
+      </div>
 
-      <br />
-      <br />
-      <button onClick={generateSchema}>Generate</button>
-
-      <pre>{result}</pre>
     </div>
   )
 }
